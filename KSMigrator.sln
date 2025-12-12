@@ -1,0 +1,17 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KSDbMigrator", "src\KSDbMigrator\KSDbMigrator.csproj", "{A1B2C3D4-5678-9012-3456-789012345678}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "KSDbMigrator.Tests", "tests\KSDbMigrator.Tests\KSDbMigrator.Tests.csproj", "{B2C3D4E5-6789-0123-4567-890123456789}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A1B2C3D4-5678-9012-3456-789012345678}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-5678-9012-3456-789012345678}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B2C3D4E5-6789-0123-4567-890123456789}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B2C3D4E5-6789-0123-4567-890123456789}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+EndGlobal
