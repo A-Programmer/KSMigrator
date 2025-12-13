@@ -4,7 +4,7 @@ namespace KSDbMigrator;
 
 public record KSDbMigratorOptions(
     string ApplyScriptsFolder,
-    string RollbackFolder,
+    string RollbackScriptsFolder,
     string BackupsFolder,
     string ExportsFolder,
     string? InfrastructureProjectName = null,
@@ -17,8 +17,8 @@ public record KSDbMigratorOptions(
     string[] TablesToExport = default!)
 {
     public static KSDbMigratorOptions Default => new(
-        ApplyFolder: "SQLScripts/Apply",
-        RollbackFolder: "SQLScripts/Rollback",
+        ApplyScriptsFolder: "SQLScripts/Apply",
+        RollbackScriptsFolder: "SQLScripts/Rollback",
         BackupsFolder: "SQLScripts/Backups",
         ExportsFolder: "SQLScripts/Exports"
     );
