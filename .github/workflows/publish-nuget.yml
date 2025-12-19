@@ -3,23 +3,22 @@ name: Publish NuGet Package
 on:
   push:
     branches:
-      - main  # روی push to main (شامل merge PR to main) فعال میشه
+      - main
 
 jobs:
-  build-and-publish:
-    runs-on: ubuntu-latest  # لینوکس (ارزان و سریع)
-
+  publish:
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # برای GitVersion نیاز به تاریخچه کامل
+          fetch-depth: 0
 
-      - name: Setup .NET 8
+      - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
@@ -27,23 +26,31 @@ jobs:
       - name: Install GitVersion
         run: dotnet tool install --global GitVersion.Tool --version 5.*
 
-      - name: Update PATH for GitVersion
+      - name: Add GitVersion to PATH
         run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      - name: Determine Version
-        id: gitversion
+      - name: Calculate Version
+        id: version
         run: |
-          gitversion=$(dotnet-gitversion /output json /showvariable SemVer)
-          echo "SemVer=$gitversion" >> $GITHUB_OUTPUT
+          VERSION=$(dotnet-gitversion /showvariable SemVer)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Calculated version: $VERSION"
 
-      - name: Restore dependencies
-        run: dotnet restore src/KSDbMigrator/KSDbMigrator.csproj
+      - name: Restore
+        run: dotnet restore
 
       - name: Build
-        run: dotnet build src/KSDbMigrator/KSDbMigrator.csproj --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore
 
-      - name: Pack with version
-        run: dotnet pack src/KSDbMigrator/KSDbMigrator.csproj --configuration Release --no-build /p:Version=${{ steps.gitversion.outputs.SemVer }}
+      - name: Pack with dynamic version
+        run: dotnet pack src/KSDbMigrator/KSDbMigrator.csproj \
+          --configuration Release \
+          --no-build \
+          -p:PackageVersion=${{ steps.version.outputs.VERSION }}
 
       - name: Push to NuGet.org
-        run: dotnet nuget push "src/KSDbMigrator/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          dotnet nuget push "src/KSDbMigrator/bin/Release/*.nupkg" \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
