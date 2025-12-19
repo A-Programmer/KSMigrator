@@ -51,9 +51,60 @@ public static class ServiceCollectionExtensions
         if (!string.IsNullOrEmpty(options.RequiredRole))
             group.RequireAuthorization(auth => auth.RequireRole(options.RequiredRole));
 
-        group.MapGet("/status", () => Results.Ok(new { Message = "Status endpoint" }));
-        group.MapPost("/apply", () => Results.Ok("Applied"));
-        group.MapPost("/rollback/{v}", (string v) => Results.Ok($"Rolled back to {v}"));
+        group.MapGet("/status", async (TContext ctx, KSDbMigratorOptions options) =>
+        {
+            var applied = await ctx.Set<AppliedScript>()
+                .OrderBy(x => x.AppliedOn)
+                .Select(x => x.MigrationName)
+                .ToListAsync();
+
+            var applyFolder = Path.Combine(AppContext.BaseDirectory, "..", options.ApplyScriptsFolder);
+            var allScripts = Directory.Exists(applyFolder)
+                ? Directory.GetFiles(applyFolder, "*.sql")
+                    .Select(Path.GetFileNameWithoutExtension)
+                    .OrderBy(x => x)
+                    .ToList()
+                : new List<string>();
+
+            var pending = allScripts.Except(applied).ToList();
+
+            return Results.Ok(new
+            {
+                Applied = applied,
+                Pending = pending,
+                All = allScripts,
+                TotalApplied = applied.Count,
+                TotalPending = pending.Count,
+                TotalScripts = allScripts.Count
+            });
+        });
+        group.MapPost("/apply", async (IDbMigrator migrator) =>
+        {
+            await migrator.ApplyPendingScriptsAsync();
+            return Results.Ok("All pending migrations have been applied successfully.");
+        });
+
+        group.MapPost("/rollback-last", async (IDbMigrator migrator, TContext ctx) =>
+        {
+            var lastApplied = await ctx.Set<AppliedScript>()
+                .OrderByDescending(x => x.AppliedOn)
+                .FirstOrDefaultAsync();
+
+            if (lastApplied == null)
+                return Results.BadRequest("No migration has been applied yet. Nothing to rollback.");
+
+            await migrator.RollbackToMigrationAsync(lastApplied.MigrationName);
+            return Results.Ok($"Successfully rolled back the last migration: {lastApplied.MigrationName}");
+        });
+
+        group.MapPost("/rollback/{targetVersion}", async (IDbMigrator migrator, string targetVersion) =>
+        {
+            if (string.IsNullOrWhiteSpace(targetVersion))
+                return Results.BadRequest("Target version is required.");
+
+            await migrator.RollbackToMigrationAsync(targetVersion);
+            return Results.Ok($"Successfully rolled back to migration: {targetVersion}");
+        });
 
         return endpoints;
     }
