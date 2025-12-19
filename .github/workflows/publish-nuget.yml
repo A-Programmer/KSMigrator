@@ -13,40 +13,24 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # مهم برای GitVersion
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Install GitVersion
-        run: dotnet tool install --global GitVersion.Tool --version 5.12.0
-
-      - name: Add dotnet tools to PATH
-        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
-
-      - name: Run GitVersion
-        id: gitversion
-        run: |
-          VERSION=$(dotnet-gitversion /showvariable SemVer)
-          echo "VERSION=$VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-      - name: Restore dependencies
+      - name: Restore
         run: dotnet restore
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      - name: Pack with GitVersion
+      - name: Pack
         run: dotnet pack src/KSDbMigrator/KSDbMigrator.csproj \
           --configuration Release \
-          --no-build \
-          -p:PackageVersion=${{ steps.gitversion.outputs.version }}
+          --no-build
 
       - name: Push to NuGet.org
         run: |
