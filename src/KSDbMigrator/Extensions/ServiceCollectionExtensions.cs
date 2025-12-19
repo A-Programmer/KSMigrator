@@ -14,7 +14,24 @@ public static class ServiceCollectionExtensions
         Action<KSDbMigratorOptions> configure)
         where TContext : DbContext
     {
-        var options = KSDbMigratorOptions.Default;
+        var options = new KSDbMigratorOptions()
+        {
+            ApplyScriptsFolder    = "SQLScripts/Apply",
+            RollbackScriptsFolder = "SQLScripts/Rollback",
+            BackupsFolder         = "SQLScripts/Backups",
+            ExportsFolder         = "SQLScripts/Exports",
+
+            InfrastructureProjectName = "Project.Infrastructure",
+
+            DatabaseType = DatabaseType.PostgreSQL,
+            PgDumpPath   = "pg_dump",
+
+            AutoApplyOnStartup = true,
+
+            EnableMigrationEndpoints = true,
+            MigrationRoute           = "api/db/migrations",
+            // RequiredRole             = "Administrator", // اگر بخوای
+        };
         configure(options);
         services.AddSingleton(options);
         services.AddScoped<IDbMigrator, DbMigrator<TContext>>();
