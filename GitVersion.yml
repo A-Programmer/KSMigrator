@@ -1,0 +1,6 @@
+mode: ContinuousDelivery
+branches:
+  main:
+    tag: ''
+ignore:
+  sha: []

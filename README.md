@@ -48,25 +48,28 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // KSDbMigrator registration
-builder.Services.AddKSDbMigrator<AppDbContext>(opt =>
+builder.Services.AddKSDbMigrator<ProjectDbContext>(opt =>
 {
-    // Folder structure (relative to Infrastructure project)
-    opt.ApplyScriptsFolder    = "SQLScripts/Apply";
-    opt.RollbackScriptsFolder = "SQLScripts/Rollback";
-    opt.BackupsFolder         = "SQLScripts/Backups";
-    opt.ExportsFolder         = "SQLScripts/Exports";
+    opt = opt with
+    {
+        // Folder structure (relative to Infrastructure project)
+        ApplyScriptsFolder    = "SQLScripts/Apply";
+        RollbackScriptsFolder = "SQLScripts/Rollback";
+        BackupsFolder         = "SQLScripts/Backups";
+        ExportsFolder         = "SQLScripts/Exports";
 
-    opt.InfrastructureProjectName = "Project.Infrastructure"; // important!
+        InfrastructureProjectName = "Project.Infrastructure"; // important!
 
-    opt.DatabaseType = DatabaseType.PostgreSQL; // or SQLServer, MySQL, SQLite
-    opt.PgDumpPath   = "pg_dump";               // path on server if not in PATH
+        DatabaseType = DatabaseType.PostgreSQL; // or SQLServer, MySQL, SQLite
+        PgDumpPath   = "pg_dump";               // path on server if not in PATH
 
-    opt.AutoApplyOnStartup = builder.Environment.IsProduction();
+        AutoApplyOnStartup = builder.Environment.IsProduction();
 
-    // Optional: enable built-in REST API for migrations
-    opt.EnableMigrationEndpoints = true;
-    opt.MigrationRoute           = "api/db/migrations";
-    opt.RequiredRole             = "Administrator";
+        // Optional: enable built-in REST API for migrations
+        EnableMigrationEndpoints = true;
+        MigrationRoute           = "api/db/migrations";
+        RequiredRole             = "Administrator";
+    };
 });
 
 var app = builder.Build();
