@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>KSDbMigrator</PackageId>
+      <Version>1.0.</Version>
     <Authors>Kamran Sadin</Authors>
     <Description>Smart database migration with backup, rollback and data restore.</Description>
     <PackageTags>database;migration;efcore;backup;rollback</PackageTags>
