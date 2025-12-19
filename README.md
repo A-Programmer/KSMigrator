@@ -57,7 +57,7 @@ builder.Services.AddKSDbMigrator<ProjectDbContext>(opt =>
 
     opt.InfrastructureProjectName = "Project.Infrastructure";
 
-    opt/DatabaseType = DatabaseType.PostgreSQL;
+    opt.DatabaseType = DatabaseType.PostgreSQL;
     opt.PgDumpPath   = "pg_dump";
 
     opt.AutoApplyOnStartup = true;
