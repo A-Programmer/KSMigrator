@@ -54,10 +54,10 @@ public static class ServiceCollectionExtensions
         group.MapGet("/status", async (TContext ctx, KSDbMigratorOptions options) =>
         {
             var applied = await ctx.Set<AppliedScript>()
+                .AsNoTracking()
                 .OrderBy(x => x.AppliedOn)
                 .Select(x => x.MigrationName)
                 .ToListAsync();
-
             var applyFolder = Path.Combine(AppContext.BaseDirectory, "..", options.ApplyScriptsFolder);
             var allScripts = Directory.Exists(applyFolder)
                 ? Directory.GetFiles(applyFolder, "*.sql")
