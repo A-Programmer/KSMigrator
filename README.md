@@ -50,26 +50,21 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // KSDbMigrator registration
 builder.Services.AddKSDbMigrator<ProjectDbContext>(opt =>
 {
-    opt = opt with
-    {
-        // Folder structure (relative to Infrastructure project)
-        ApplyScriptsFolder    = "SQLScripts/Apply";
-        RollbackScriptsFolder = "SQLScripts/Rollback";
-        BackupsFolder         = "SQLScripts/Backups";
-        ExportsFolder         = "SQLScripts/Exports";
+    opt.ApplyScriptsFolder    = "SQLScripts/Apply";
+    opt.RollbackScriptsFolder = "SQLScripts/Rollback";
+    opt.BackupsFolder         = "SQLScripts/Backups";
+    opt.ExportsFolder         = "SQLScripts/Exports";
 
-        InfrastructureProjectName = "Project.Infrastructure"; // important!
+    opt.InfrastructureProjectName = "Project.Infrastructure";
 
-        DatabaseType = DatabaseType.PostgreSQL; // or SQLServer, MySQL, SQLite
-        PgDumpPath   = "pg_dump";               // path on server if not in PATH
+    opt/DatabaseType = DatabaseType.PostgreSQL;
+    opt.PgDumpPath   = "pg_dump";
 
-        AutoApplyOnStartup = builder.Environment.IsProduction();
+    opt.AutoApplyOnStartup = true;
 
-        // Optional: enable built-in REST API for migrations
-        EnableMigrationEndpoints = true;
-        MigrationRoute           = "api/db/migrations";
-        RequiredRole             = "Administrator";
-    };
+    opt.EnableMigrationEndpoints = true;
+    opt.MigrationRoute           = "api/db/migrations";
+    // opt.RequiredRole             = "Administrator"; // اگر بخوای
 });
 
 var app = builder.Build();
@@ -109,45 +104,107 @@ Create a tiny helper script (you only run this once per migration):
 
 ```bash
 #!/bin/bash
+set -e
+
+if [ -z "$1" ]; then
+  echo "استفاده: ./generate-migration.sh AddBaseEntities"
+  exit 1
+fi
+
 NAME=$1
 INFRA="src/Project.Infrastructure"
 WEB="src/Project.WebApi"
 
-dotnet ef migrations add $NAME --project $INFRA --startup-project $WEB
+echo "ساخت مایگریشن $NAME..."
 
-N=$(ls $INFRA/SQLScripts/Apply/*.sql 2>/dev/null | wc -l | xargs)
-N=$(printf "%03d" $N)
+dotnet ef migrations add $NAME \
+  --project $INFRA \
+  --startup-project $WEB
 
-dotnet ef migrations script --from-migration 0 --to-migration $NAME \
-  --output "$INFRA/SQLScripts/Apply/${N}_${NAME}.sql" \
-  --idempotent --project $INFRA --startup-project $WEB
+# شمارش فایل‌های موجود برای شماره‌گذاری
+APPLY_COUNT=$(find "$INFRA/SQLScripts/Apply" -name "*.sql" 2>/dev/null | wc -l || echo 0)
+NUM=$(printf "%03d" $((APPLY_COUNT + 1)))
 
-dotnet ef migrations script --from-migration $NAME --to-migration 0 \
-  --output "$INFRA/SQLScripts/Rollback/${N}_${NAME}_Rollback.sql" \
-  --idempotent --project $INFRA --startup-project $WEB
+echo "تولید اسکریپت Apply (از ابتدا تا این مایگریشن)..."
+dotnet ef migrations script \
+  --idempotent \
+  --output "$INFRA/SQLScripts/Apply/${NUM}_${NAME}.sql" \
+  --project $INFRA \
+  --startup-project $WEB
 
-echo "Migration $NAME ready!"
+echo "تولید اسکریپت Rollback (معکوس فقط این مایگریشن)..."
+dotnet ef migrations script $NAME \
+  --idempotent \
+  --output "$INFRA/SQLScripts/Rollback/${NUM}_${NAME}_Rollback.sql" \
+  --project $INFRA \
+  --startup-project $WEB
+
+echo "مایگریشن $NAME با موفقیت ساخته شد!"
+echo "حالا برنامه رو اجرا کن → همه چیز خودکار اعمال میشه"
+```
+
+```bash
+chmod +x generate-migration.sh
+./generate-migration.sh AddBaseEntities
 ```
 
 **Windows PowerShell (`generate-migration.ps1`)**
 
 ```powershell
-```powershell
-param([string]$Name)
+# generate-migration.ps1
+# استفاده: .\generate-migration.ps1 AddBaseEntities
+
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$Name
+)
+
 $infra = "src/Project.Infrastructure"
 $web = "src/Project.WebApi"
 
-dotnet ef migrations add $Name --project $infra --startup-project $web
+Write-Host "ساخت مایگریشن $Name..." -ForegroundColor Green
 
-$count = (Get-ChildItem "$infra/SQLScripts/Apply" -Filter "*.sql" | Measure-Object).Count
-$num = "{0:D3}" -f $count
+dotnet ef migrations add $Name `
+    --project $infra `
+    --startup-project $web
 
-dotnet ef migrations script --from-migration 0 --to-migration $Name --output "$infra/SQLScripts/Apply/${num}_${Name}.sql" --idempotent --project $infra --startup-project $web
-dotnet ef migrations script --from-migration $Name --to-migration 0 --output "$infra/SQLScripts/Rollback/${num}_${Name}_Rollback.sql" --idempotent --project $infra --startup-project $web
+# شمارش فایل‌های موجود در پوشه Apply برای شماره‌گذاری
+$applyPath = Join-Path $infra "SQLScripts/Apply"
+$applyFiles = Get-ChildItem -Path $applyPath -Filter "*.sql" -File -ErrorAction SilentlyContinue
+$applyCount = if ($applyFiles) { $applyFiles.Count } else { 0 }
+$num = "{0:D3}" -f ($applyCount + 1)
 
-Write-Host "Migration $Name ready!"
+Write-Host "تولید اسکریپت Apply (از ابتدا تا این مایگریشن)..." -ForegroundColor Green
+
+dotnet ef migrations script `
+    --idempotent `
+    --output "$infra/SQLScripts/Apply/${num}_${Name}.sql" `
+    --project $infra `
+    --startup-project $web
+
+Write-Host "تولید اسکریپت Rollback (معکوس فقط این مایگریشن)..." -ForegroundColor Green
+
+dotnet ef migrations script $Name `
+    --idempotent `
+    --output "$infra/SQLScripts/Rollback/${num}_${Name}_Rollback.sql" `
+    --project $infra `
+    --startup-project $web
+
+Write-Host "مایگریشن $Name با موفقیت ساخته شد!" -ForegroundColor Cyan
+Write-Host "حالا برنامه رو اجرا کن → همه چیز خودکار اعمال میشه" -ForegroundColor Cyan
 ```
 
+نحوه استفاده در ویندوز:
+
+فایل رو با نام generate-migration.ps1 در ریشه پروژه‌ات ذخیره کن.
+در PowerShell یا Terminal (در VS Code) اجرا کن:
+```
+PowerShell.\generate-migration.ps1 AddBaseEntities
+```
+اگر خطای Execution Policy دادی:
+```
+PowerShellSet-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
 Run it:
 
 ```bash
