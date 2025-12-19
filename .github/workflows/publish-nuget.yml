@@ -28,9 +28,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Pack
-        run: dotnet pack src/KSDbMigrator/KSDbMigrator.csproj \
-          --configuration Release \
-          --no-build
+        run: dotnet pack src/KSDbMigrator/KSDbMigrator.csproj --configuration Release --no-build
 
       - name: Push to NuGet.org
         run: |
