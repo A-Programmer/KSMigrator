@@ -235,4 +235,5 @@ All endpoints are protected by the role you specified (`Administrator` by defaul
 
 ## License
 
+
 MIT © 2025
