@@ -1,0 +1,49 @@
+name: Publish NuGet Package
+
+on:
+  push:
+    branches:
+      - main  # روی push to main (شامل merge PR to main) فعال میشه
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest  # لینوکس (ارزان و سریع)
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # برای GitVersion نیاز به تاریخچه کامل
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install GitVersion
+        run: dotnet tool install --global GitVersion.Tool --version 5.*
+
+      - name: Update PATH for GitVersion
+        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Determine Version
+        id: gitversion
+        run: |
+          gitversion=$(dotnet-gitversion /output json /showvariable SemVer)
+          echo "SemVer=$gitversion" >> $GITHUB_OUTPUT
+
+      - name: Restore dependencies
+        run: dotnet restore src/KSDbMigrator/KSDbMigrator.csproj
+
+      - name: Build
+        run: dotnet build src/KSDbMigrator/KSDbMigrator.csproj --configuration Release --no-restore
+
+      - name: Pack with version
+        run: dotnet pack src/KSDbMigrator/KSDbMigrator.csproj --configuration Release --no-build /p:Version=${{ steps.gitversion.outputs.SemVer }}
+
+      - name: Push to NuGet.org
+        run: dotnet nuget push "src/KSDbMigrator/bin/Release/*.nupkg" --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
