@@ -14,25 +14,18 @@ public static class ServiceCollectionExtensions
         Action<KSDbMigratorOptions> configure)
         where TContext : DbContext
     {
-        var options = new KSDbMigratorOptions()
-        {
-            ApplyScriptsFolder    = "SQLScripts/Apply",
-            RollbackScriptsFolder = "SQLScripts/Rollback",
-            BackupsFolder         = "SQLScripts/Backups",
-            ExportsFolder         = "SQLScripts/Exports",
-
-            InfrastructureProjectName = "Project.Infrastructure",
-
-            DatabaseType = DatabaseType.PostgreSQL,
-            PgDumpPath   = "pg_dump",
-
-            AutoApplyOnStartup = true,
-
-            EnableMigrationEndpoints = true,
-            MigrationRoute           = "api/db/migrations",
-            // RequiredRole             = "Administrator", // اگر بخوای
-        };
+        var options = new KSDbMigratorOptions();
         configure(options);
+
+        // اعتبارسنجی ساده (اختیاری)
+        if (string.IsNullOrEmpty(options.ApplyScriptsFolder) ||
+            string.IsNullOrEmpty(options.RollbackScriptsFolder) ||
+            string.IsNullOrEmpty(options.BackupsFolder) ||
+            string.IsNullOrEmpty(options.ExportsFolder))
+        {
+            throw new InvalidOperationException("All folder paths in KSDbMigratorOptions must be set.");
+        }
+
         services.AddSingleton(options);
         services.AddScoped<IDbMigrator, DbMigrator<TContext>>();
         return services;
@@ -44,21 +37,22 @@ public static class ServiceCollectionExtensions
     {
         var options = endpoints.ServiceProvider.GetRequiredService<KSDbMigratorOptions>();
 
-        if (!options.EnableMigrationEndpoints) return endpoints;
+        if (!options.EnableMigrationEndpoints)
+            return endpoints;
 
         var group = endpoints.MapGroup(options.MigrationRoute);
 
         if (!string.IsNullOrEmpty(options.RequiredRole))
             group.RequireAuthorization(auth => auth.RequireRole(options.RequiredRole));
 
-        group.MapGet("/status", async (TContext ctx, KSDbMigratorOptions options) =>
+        group.MapGet("/status", async (TContext ctx) =>
         {
             var applied = await ctx.Set<AppliedScript>()
                 .OrderBy(x => x.AppliedOn)
                 .Select(x => x.MigrationName)
                 .ToListAsync();
 
-            var applyFolder = Path.Combine(AppContext.BaseDirectory, "..", options.ApplyScriptsFolder);
+            var applyFolder = options.ApplyScriptsFolder;
             var allScripts = Directory.Exists(applyFolder)
                 ? Directory.GetFiles(applyFolder, "*.sql")
                     .Select(Path.GetFileNameWithoutExtension)
@@ -78,6 +72,7 @@ public static class ServiceCollectionExtensions
                 TotalScripts = allScripts.Count
             });
         });
+
         group.MapPost("/apply", async (IDbMigrator migrator) =>
         {
             await migrator.ApplyPendingScriptsAsync();
@@ -86,15 +81,15 @@ public static class ServiceCollectionExtensions
 
         group.MapPost("/rollback-last", async (IDbMigrator migrator, TContext ctx) =>
         {
-            var lastApplied = await ctx.Set<AppliedScript>()
+            var last = await ctx.Set<AppliedScript>()
                 .OrderByDescending(x => x.AppliedOn)
                 .FirstOrDefaultAsync();
 
-            if (lastApplied == null)
-                return Results.BadRequest("No migration has been applied yet. Nothing to rollback.");
+            if (last == null)
+                return Results.BadRequest("No migration has been applied yet.");
 
-            await migrator.RollbackToMigrationAsync(lastApplied.MigrationName);
-            return Results.Ok($"Successfully rolled back the last migration: {lastApplied.MigrationName}");
+            await migrator.RollbackToMigrationAsync(last.MigrationName);
+            return Results.Ok($"Rolled back the last migration: {last.MigrationName}");
         });
 
         group.MapPost("/rollback/{targetVersion}", async (IDbMigrator migrator, string targetVersion) =>
@@ -103,7 +98,7 @@ public static class ServiceCollectionExtensions
                 return Results.BadRequest("Target version is required.");
 
             await migrator.RollbackToMigrationAsync(targetVersion);
-            return Results.Ok($"Successfully rolled back to migration: {targetVersion}");
+            return Results.Ok($"Rolled back to migration: {targetVersion}");
         });
 
         return endpoints;

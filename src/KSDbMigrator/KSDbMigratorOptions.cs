@@ -4,10 +4,10 @@ namespace KSDbMigrator;
 
 public class KSDbMigratorOptions
 {
-    public required string ApplyScriptsFolder { get; set; }
-    public required string RollbackScriptsFolder { get; set; }
-    public required string BackupsFolder { get; set; }
-    public required string ExportsFolder { get; set; }
+    public string ApplyScriptsFolder { get; set; } = string.Empty;
+    public string RollbackScriptsFolder { get; set; } = string.Empty;
+    public string BackupsFolder { get; set; } = string.Empty;
+    public string ExportsFolder { get; set; } = string.Empty;
 
     public string? InfrastructureProjectName { get; set; }
     public DatabaseType DatabaseType { get; set; } = DatabaseType.PostgreSQL;

@@ -16,8 +16,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.8" />
+    <PackageReference Include="Npgsql" Version="8.0.8" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.8" />
     <PackageReference Include="CsvHelper" Version="33.0.1" />
+    <PackageReference Include="NpgsqlBulkCopy" Version="1.2.0" />
   </ItemGroup>
 
   <ItemGroup>
