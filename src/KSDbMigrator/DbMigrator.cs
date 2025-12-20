@@ -25,13 +25,22 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
     {
         await EnsureConnectionAsync(ct);
 
-        // اصلاح خطا: دریافت لیست و سپس تبدیل به Hash Set
-        var appliedList = await _context.Set<AppliedScript>()
-            .Select(x => x.MigrationName)
-            .ToListAsync(ct);
+        // چک کنیم جدول applied_scripts وجود داره یا نه
+        var tableExists = await _context.Database.SqlQueryRaw<int>(
+            $"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'applied_scripts'")
+            .SingleAsync(ct) > 0;
 
-        // اطمینان از اینکه مقادیر null باعث خطا نشوند
-        var appliedSet = appliedList.Where(x => x != null).ToHashSet();
+        HashSet<string> appliedSet = new();
+
+        if (tableExists)
+        {
+            var appliedList = await _context.Set<AppliedScript>()
+                .Select(x => x.MigrationName)
+                .ToListAsync(ct);
+
+            appliedSet = appliedList.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        // اگر جدول وجود نداشت، appliedSet خالی می‌مونه → همه اسکریپت‌ها pending حساب میشن
 
         var scripts = Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql")
             .OrderBy(Path.GetFileName)
@@ -54,12 +63,17 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
                 await _context.Database.ExecuteSqlRawAsync(sql, ct);
 
-                await _context.Set<AppliedScript>().AddAsync(new AppliedScript
+                // اگر جدول وجود نداشت، اولین اسکریپت خودش جدول رو می‌سازه
+                // پس اینجا سعی می‌کنیم رکورد اضافه کنیم — اگر جدول هنوز وجود نداشته باشه، خطا می‌ده و rollback میشه
+                if (tableExists || scripts.IndexOf(scriptPath) > 0) // از دومین اسکریپت به بعد مطمئنیم جدول هست
                 {
-                    ScriptName = Path.GetFileName(scriptPath),
-                    MigrationName = migrationName,
-                    AppliedOn = DateTime.UtcNow
-                }, ct);
+                    await _context.Set<AppliedScript>().AddAsync(new AppliedScript
+                    {
+                        ScriptName = Path.GetFileName(scriptPath),
+                        MigrationName = migrationName,
+                        AppliedOn = DateTime.UtcNow
+                    }, ct);
+                }
             }
 
             await _context.SaveChangesAsync(ct);
