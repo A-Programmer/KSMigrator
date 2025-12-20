@@ -87,16 +87,7 @@ SQLScripts/
 └── Exports/      ← automatically filled
 ```
 
-### 4. Generate migrations exactly as you always do
-
-```bash
-# Normal EF Core command – nothing changes!
-dotnet ef migrations add AddUsersTable \
-  --project src/Project.Infrastructure \
-  --startup-project src/Project.WebApi
-```
-
-### 5. Automatically generate Apply & Rollback scripts (one-liner)
+### 4. Automatically generate Apply & Rollback scripts (one-liner)
 
 Create a tiny helper script (you only run this once per migration):
 
@@ -211,7 +202,7 @@ Run it:
 ./generate-migration.sh AddUsersTable
 ```
 
-### 6. That's it!
+### 5. That's it!
 
 Run your application:
 
