@@ -25,26 +25,28 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
     {
         await EnsureConnectionAsync(ct);
 
-        // چک کنیم جدول applied_scripts وجود داره یا نه
-        var tableExists = await _context.Database.SqlQueryRaw<int>(
-            $"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'applied_scripts'")
-            .SingleAsync(ct) > 0;
-
         HashSet<string> appliedSet = new();
 
-        if (tableExists)
+        bool tableExists = false;
+        try
         {
             var appliedList = await _context.Set<AppliedScript>()
                 .Select(x => x.MigrationName)
                 .ToListAsync(ct);
 
             appliedSet = appliedList.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            tableExists = true;
         }
-        // اگر جدول وجود نداشت، appliedSet خالی می‌مونه → همه اسکریپت‌ها pending حساب میشن
+        catch (PostgresException ex) when (ex.SqlState == "42P01") // جدول وجود نداره
+        {
+            tableExists = false;
+        }
 
         var scripts = Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql")
             .OrderBy(Path.GetFileName)
-            .Where(f => !appliedSet.Contains(Path.GetFileNameWithoutExtension(f)))
+            .Select(f => new { Path = f, Name = Path.GetFileNameWithoutExtension(f) })
+            .Where(f => !appliedSet.Contains(f.Name))
+            .Select(f => f.Path)
             .ToList();
 
         if (!scripts.Any())
@@ -63,9 +65,8 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
                 await _context.Database.ExecuteSqlRawAsync(sql, ct);
 
-                // اگر جدول وجود نداشت، اولین اسکریپت خودش جدول رو می‌سازه
-                // پس اینجا سعی می‌کنیم رکورد اضافه کنیم — اگر جدول هنوز وجود نداشته باشه، خطا می‌ده و rollback میشه
-                if (tableExists || scripts.IndexOf(scriptPath) > 0) // از دومین اسکریپت به بعد مطمئنیم جدول هست
+                // اگر جدول وجود داشته باشه یا این اسکریپت اول نباشه، رکورد اضافه کن
+                if (tableExists || scripts.IndexOf(scriptPath) > 0)
                 {
                     await _context.Set<AppliedScript>().AddAsync(new AppliedScript
                     {
