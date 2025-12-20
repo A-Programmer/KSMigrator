@@ -17,7 +17,6 @@ public static class ServiceCollectionExtensions
         var options = new KSDbMigratorOptions();
         configure(options);
 
-        // اعتبارسنجی ساده (اختیاری)
         if (string.IsNullOrEmpty(options.ApplyScriptsFolder) ||
             string.IsNullOrEmpty(options.RollbackScriptsFolder) ||
             string.IsNullOrEmpty(options.BackupsFolder) ||
@@ -28,6 +27,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddScoped<IDbMigrator, DbMigrator<TContext>>();
+
         return services;
     }
 
@@ -36,6 +36,14 @@ public static class ServiceCollectionExtensions
         where TContext : DbContext
     {
         var options = endpoints.ServiceProvider.GetRequiredService<KSDbMigratorOptions>();
+
+        // این خط مهم بود که جا افتاده بود!
+        if (options.AutoApplyOnStartup)
+        {
+            using var scope = endpoints.ServiceProvider.CreateScope();
+            var migrator = scope.ServiceProvider.GetRequiredService<IDbMigrator>();
+            migrator.ApplyPendingScriptsAsync().GetAwaiter().GetResult(); // synchronous برای startup
+        }
 
         if (!options.EnableMigrationEndpoints)
             return endpoints;
