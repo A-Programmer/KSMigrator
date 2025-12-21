@@ -37,7 +37,6 @@ public static class ServiceCollectionExtensions
     {
         var options = endpoints.ServiceProvider.GetRequiredService<KSDbMigratorOptions>();
 
-        // این خط مهم بود که جا افتاده بود!
         if (options.AutoApplyOnStartup)
         {
             try
@@ -65,6 +64,7 @@ public static class ServiceCollectionExtensions
         group.MapGet("/status", async (TContext ctx) =>
         {
             var applied = await ctx.Set<AppliedScript>()
+                .AsNoTracking()
                 .OrderBy(x => x.AppliedOn)
                 .Select(x => x.MigrationName)
                 .ToListAsync();

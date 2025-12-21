@@ -47,30 +47,34 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// KSDbMigrator registration
-builder.Services.AddKSDbMigrator<ProjectDbContext>(opt =>
+var sqlScriptsDirectoryPath = Project.Infrastructure.AssemblyReference.SqlScriptsDirectory;
+if (Directory.Exists(sqlScriptsDirectoryPath))
 {
-    opt.ApplyScriptsFolder    = "SQLScripts/Apply";
-    opt.RollbackScriptsFolder = "SQLScripts/Rollback";
-    opt.BackupsFolder         = "SQLScripts/Backups";
-    opt.ExportsFolder         = "SQLScripts/Exports";
+    builder.Services.AddKSDbMigrator<ProjectDbContext>(opt =>
+    {
+        opt.ApplyScriptsFolder    = Path.Combine(sqlScriptsDirectoryPath, "Apply");
+        opt.RollbackScriptsFolder = Path.Combine(sqlScriptsDirectoryPath, "Rollback");
+        opt.BackupsFolder         = Path.Combine(sqlScriptsDirectoryPath, "Backups");
+        opt.ExportsFolder         = Path.Combine(sqlScriptsDirectoryPath, "Exports");
+    
+        opt.DatabaseType = DatabaseType.PostgreSQL;
+        opt.PgDumpPath   = "pg_dump";
 
-    opt.InfrastructureProjectName = "Project.Infrastructure";
+        opt.AutoApplyOnStartup = true;
 
-    opt/DatabaseType = DatabaseType.PostgreSQL;
-    opt.PgDumpPath   = "pg_dump";
-
-    opt.AutoApplyOnStartup = true;
-
-    opt.EnableMigrationEndpoints = true;
-    opt.MigrationRoute           = "api/db/migrations";
-    // opt.RequiredRole             = "Administrator"; // اگر بخوای
-});
+        opt.EnableMigrationEndpoints = true;
+        opt.MigrationRoute           = "api/db/migrations";
+        opt.RequiredRole             = "";
+    });
+}
 
 var app = builder.Build();
 
 // This line activates auto-apply + optional API endpoints
-app.MapKSDbMigratorEndpoints<AppDbContext>();
+if (Directory.Exists(sqlScriptsDirectoryPath))
+{
+    app.MapKSDbMigratorEndpoints<ProjectDbContext>();
+}
 
 app.Run();
 ```
@@ -86,6 +90,10 @@ SQLScripts/
 ├── Backups/      ← automatically filled
 └── Exports/      ← automatically filled
 ```
+
+### Optional: Create the Initial migration manually  
+
+It could be helpful to create the first migration manually and then generate the script by using the following scripts
 
 ### 4. Automatically generate Apply & Rollback scripts (one-liner)
 
