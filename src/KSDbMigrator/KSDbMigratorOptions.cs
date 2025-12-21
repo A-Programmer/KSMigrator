@@ -1,5 +1,7 @@
 #nullable enable
 
+using System.Reflection;
+
 namespace KSDbMigrator;
 
 public class KSDbMigratorOptions
