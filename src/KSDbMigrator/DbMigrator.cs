@@ -16,20 +16,14 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         _context = context;
         _options = options;
 
-        // پیدا کردن مسیر Assembly پروژه‌ای که TContext توش تعریف شده
         var assemblyPath = Assembly.GetAssembly(typeof(TContext))?.Location;
         var assemblyDirectory = Path.GetDirectoryName(assemblyPath) ?? throw new InvalidOperationException("Cannot determine assembly directory.");
 
-        Console.WriteLine($"\n\n\n\n{assemblyPath}\n\n\n\n\n\n");
-        Console.WriteLine($"\n\n\n\n{assemblyDirectory}\n\n\n\n\n\n");
-        
-        // تنظیم مسیرهای پوشه‌ها نسبت به ریشه پروژه Infrastructure
         _options.ApplyScriptsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Apply");
         _options.RollbackScriptsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Rollback");
         _options.BackupsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Backups");
         _options.ExportsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Exports");
         
-        // اطمینان از وجود پوشه‌ها
         Directory.CreateDirectory(_options.ApplyScriptsFolder);
         Directory.CreateDirectory(_options.RollbackScriptsFolder);
         Directory.CreateDirectory(_options.BackupsFolder);
@@ -82,7 +76,6 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
                 await _context.Database.ExecuteSqlRawAsync(sql, ct);
 
-                // اگر جدول وجود داشته باشه یا این اسکریپت اول نباشه، رکورد اضافه کن
                 if (tableExists || scripts.IndexOf(scriptPath) > 0)
                 {
                     await _context.Set<AppliedScript>().AddAsync(new AppliedScript
