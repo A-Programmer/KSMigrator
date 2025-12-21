@@ -37,7 +37,6 @@ public static class ServiceCollectionExtensions
     {
         var options = endpoints.ServiceProvider.GetRequiredService<KSDbMigratorOptions>();
 
-        // این خط مهم بود که جا افتاده بود!
         if (options.AutoApplyOnStartup)
         {
             try
