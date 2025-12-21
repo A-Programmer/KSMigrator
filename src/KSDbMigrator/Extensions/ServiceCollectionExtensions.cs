@@ -64,6 +64,7 @@ public static class ServiceCollectionExtensions
         group.MapGet("/status", async (TContext ctx) =>
         {
             var applied = await ctx.Set<AppliedScript>()
+                .AsNoTracking()
                 .OrderBy(x => x.AppliedOn)
                 .Select(x => x.MigrationName)
                 .ToListAsync();
