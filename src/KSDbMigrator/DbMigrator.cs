@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 
 namespace KSDbMigrator;
@@ -15,6 +16,20 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         _context = context;
         _options = options;
 
+        // پیدا کردن مسیر Assembly پروژه‌ای که TContext توش تعریف شده
+        var assemblyPath = Assembly.GetAssembly(typeof(TContext))?.Location;
+        var assemblyDirectory = Path.GetDirectoryName(assemblyPath) ?? throw new InvalidOperationException("Cannot determine assembly directory.");
+
+        Console.WriteLine($"\n\n\n\n{assemblyPath}\n\n\n\n\n\n");
+        Console.WriteLine($"\n\n\n\n{assemblyDirectory}\n\n\n\n\n\n");
+        
+        // تنظیم مسیرهای پوشه‌ها نسبت به ریشه پروژه Infrastructure
+        _options.ApplyScriptsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Apply");
+        _options.RollbackScriptsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Rollback");
+        _options.BackupsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Backups");
+        _options.ExportsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Exports");
+        
+        // اطمینان از وجود پوشه‌ها
         Directory.CreateDirectory(_options.ApplyScriptsFolder);
         Directory.CreateDirectory(_options.RollbackScriptsFolder);
         Directory.CreateDirectory(_options.BackupsFolder);
@@ -41,8 +56,6 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         {
             tableExists = false;
         }
-        
-        Console.WriteLine($"\n\n\n\n\n\n\n{Directory.GetCurrentDirectory()}\n\n\n\n\n\n\n\n\n\n");
 
         var scripts = Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql")
             .OrderBy(Path.GetFileName)
@@ -111,7 +124,6 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
         try
         {
-            // اصلاح خطا: استفاده از AsEnumerable().Reverse() برای حلقه foreach
             foreach (var script in toRollback.AsEnumerable().Reverse())
             {
                 var rollbackFile = $"{script.MigrationName}_Rollback.sql";
@@ -202,14 +214,11 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         {
             var filePath = Path.Combine(_options.ExportsFolder, $"{baseName}_{table}.csv");
 
-            // ایجاد فایل برای نوشتن
             await using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
             await using var fileWriter = new StreamWriter(fileStream, Encoding.UTF8);
 
-            // شروع عملیات اکسپورت متنی از دیتابیس
             using var reader = await conn.BeginTextExportAsync($"COPY {table} TO STDOUT WITH (FORMAT CSV, HEADER)", ct);
 
-            // انتقال داده‌ها به صورت تکه تکه (Chunk) از دیتابیس به فایل
             var buffer = new char[8192];
             int charsRead;
             while ((charsRead = await reader.ReadAsync(buffer, 0, buffer.Length)) > 0)
@@ -224,7 +233,6 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         if (!_options.TablesToExport.Any()) return;
 
         var connectionString = _context.Database.GetConnectionString()!;
-        // تمام عملیات باید روی همین یک کانکشن انجام شود تا جدول موقت دیده شود
         await using var conn = new NpgsqlConnection(connectionString);
         await conn.OpenAsync(ct);
 
@@ -233,17 +241,14 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
             var table = Path.GetFileNameWithoutExtension(file).Split('_').Last();
             var tempTable = $"temp_{Guid.NewGuid():N}".Substring(0, 10);
 
-            // 1. ایجاد جدول موقت روی همین کانکشن
             await using (var cmd = new NpgsqlCommand($"CREATE TEMP TABLE {tempTable} (LIKE {table} INCLUDING DEFAULTS)", conn))
             {
                 await cmd.ExecuteNonQueryAsync(ct);
             }
 
-            // 2. کپی داده‌ها از فایل CSV به جدول موقت
             using var fileStream = File.OpenRead(file);
             using var fileReader = new StreamReader(fileStream, Encoding.UTF8);
-            
-            // شروع عملیات ایمپورت متنی به دیتابیس
+
             await using (var writer = await conn.BeginTextImportAsync($"COPY {tempTable} FROM STDIN WITH (FORMAT CSV, HEADER)", ct))
             {
                 var buffer = new char[8192];
@@ -252,10 +257,8 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
                 {
                     await writer.WriteAsync(buffer, 0, charsRead);
                 }
-                // پایان بلاک using باعث بسته شدن writer و کامیت شدن COPY می‌شود
             }
 
-            // 3. انتقال از جدول موقت به اصلی
             await using (var cmd = new NpgsqlCommand($"INSERT INTO {table} SELECT * FROM {tempTable} ON CONFLICT (id) DO NOTHING", conn))
             {
                 await cmd.ExecuteNonQueryAsync(ct);
