@@ -10,8 +10,6 @@ public class KSDbMigratorOptions
     public string RollbackScriptsFolder { get; set; } = string.Empty;
     public string BackupsFolder { get; set; } = string.Empty;
     public string ExportsFolder { get; set; } = string.Empty;
-
-    public string? InfrastructureProjectName { get; set; }
     public DatabaseType DatabaseType { get; set; } = DatabaseType.PostgreSQL;
     public string? PgDumpPath { get; set; } = "pg_dump";
     public bool AutoApplyOnStartup { get; set; } = true;
