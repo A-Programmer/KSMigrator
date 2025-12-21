@@ -39,6 +39,8 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
     public async Task ApplyPendingScriptsAsync(CancellationToken ct = default)
     {
         await EnsureConnectionAsync(ct);
+        
+        await _context.Database.MigrateAsync(ct);
 
         HashSet<string> appliedSet = new();
 
