@@ -40,9 +40,18 @@ public static class ServiceCollectionExtensions
         // این خط مهم بود که جا افتاده بود!
         if (options.AutoApplyOnStartup)
         {
-            using var scope = endpoints.ServiceProvider.CreateScope();
-            var migrator = scope.ServiceProvider.GetRequiredService<IDbMigrator>();
-            migrator.ApplyPendingScriptsAsync().GetAwaiter().GetResult(); // synchronous برای startup
+            try
+            {
+                using var scope = endpoints.ServiceProvider.CreateScope();
+                var migrator = scope.ServiceProvider.GetRequiredService<IDbMigrator>();
+                migrator.ApplyPendingScriptsAsync().GetAwaiter().GetResult(); // synchronous برای startup
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.InnerException?.Message);
+                throw;
+            }
         }
 
         if (!options.EnableMigrationEndpoints)
