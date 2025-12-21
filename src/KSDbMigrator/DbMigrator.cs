@@ -42,7 +42,7 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
             tableExists = false;
         }
         
-        Console.WriteLine($"\n\n\n\n\n\n\n{Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql").ToList()}\n\n\n\n\n\n\n\n\n\n");
+        Console.WriteLine($"\n\n\n\n\n\n\n{Directory.GetCurrentDirectory()}\n\n\n\n\n\n\n\n\n\n");
 
         var scripts = Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql")
             .OrderBy(Path.GetFileName)
