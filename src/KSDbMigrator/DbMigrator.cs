@@ -19,10 +19,11 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         var assemblyPath = Assembly.GetAssembly(typeof(TContext))?.Location;
         var assemblyDirectory = Path.GetDirectoryName(assemblyPath) ?? throw new InvalidOperationException("Cannot determine assembly directory.");
 
-        _options.ApplyScriptsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Apply");
-        _options.RollbackScriptsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Rollback");
-        _options.BackupsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Backups");
-        _options.ExportsFolder = Path.Combine(assemblyDirectory, "..", "..", "..", "SQLScripts", "Exports");
+        _options.ApplyScriptsFolder = Path.Combine("/", "SQLScripts", "Apply");
+        Console.WriteLine($"\n\n\n\n\n\n\n\n\nApplying scripts folder: {_options.ApplyScriptsFolder}\n\n\n\n\n\n\n\n\n");
+        _options.RollbackScriptsFolder = Path.Combine("/",  "SQLScripts", "Rollback");
+        _options.BackupsFolder = Path.Combine("/",  "SQLScripts", "Backups");
+        _options.ExportsFolder = Path.Combine("/",  "SQLScripts", "Exports");
         
         Directory.CreateDirectory(_options.ApplyScriptsFolder);
         Directory.CreateDirectory(_options.RollbackScriptsFolder);
@@ -32,8 +33,11 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
     public async Task ApplyPendingScriptsAsync(CancellationToken ct = default)
     {
-        Console.WriteLine($"Applying pending scripts for {_options.DatabaseType}...");
+        Console.WriteLine("Hello World!!!");
+        Console.WriteLine($"Inner: Applying pending scripts for {_options.DatabaseType}");
+        Console.WriteLine($"\n\n\n\n\n\n1: {_options.ApplyScriptsFolder}\n\n\n\n\n\n");
         await EnsureConnectionAsync(ct);
+        Console.WriteLine($"\n\n\n\n\n\n2: {_options.ApplyScriptsFolder}\n\n\n\n\n\n");
 
         var scripts = Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql")
             .OrderBy(Path.GetFileName)
