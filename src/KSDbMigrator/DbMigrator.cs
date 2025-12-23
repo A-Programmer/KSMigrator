@@ -52,11 +52,9 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
                 var migrationName = Path.GetFileNameWithoutExtension(scriptPath);
                 var sql = await File.ReadAllTextAsync(scriptPath, ct);
 
-                // اجرای اسکریپت بدون چک کردن جدول applied_scripts
                 await _context.Database.ExecuteSqlRawAsync(sql, ct);
 
-                // حالا سعی می‌کنیم رکورد اضافه کنیم — اگر جدول وجود داشته باشه، اضافه میشه
-                // اگر وجود نداشته باشه، خطا می‌ده اما چون اولین اسکریپت جدول رو می‌سازه، از دومین به بعد کار می‌کنه
+                // سعی می‌کنیم رکورد اضافه کنیم — اگر جدول وجود داشته باشه، اضافه می‌شه
                 try
                 {
                     await _context.Set<AppliedScript>().AddAsync(new AppliedScript
@@ -70,8 +68,7 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
                 }
                 catch (PostgresException ex) when (ex.SqlState == "42P01")
                 {
-                    // جدول وجود نداره — یعنی این اولین اسکریپته و جدول رو تازه ساخته
-                    // نادیده بگیر و ادامه بده
+                    // جدول هنوز وجود نداره — نادیده بگیر
                 }
             }
 
