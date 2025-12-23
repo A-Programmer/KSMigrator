@@ -18,18 +18,27 @@ public static class ServiceCollectionExtensions
     {
         var options = new KSDbMigratorOptions();
         configure(options);
+        
 
         if (string.IsNullOrEmpty(options.ApplyScriptsFolder) ||
             string.IsNullOrEmpty(options.RollbackScriptsFolder) ||
             string.IsNullOrEmpty(options.BackupsFolder) ||
             string.IsNullOrEmpty(options.ExportsFolder))
         {
+            Console.WriteLine($"\n\n\n\n\n{options.ApplyScriptsFolder}\n\n\n\n\n");
             throw new InvalidOperationException("All folder paths in KSDbMigratorOptions must be set.");
+        }
+        else
+        {
+            
+            Console.WriteLine($"\n\n\n\n\nNo Value for options\n\n\n\n\n");
         }
 
         services.AddSingleton(options);
         services.AddScoped<IDbMigrator, DbMigrator<TContext>>();
 
+        Console.WriteLine($"\n\n\n\n\n\n\n\nCheck Options: {options.ApplyScriptsFolder}\n\n\n\n\n\n\n\n");
+        
         if (options.AutoApplyOnStartup)
         {
             services.AddHostedService<MigrationHostedService>();
