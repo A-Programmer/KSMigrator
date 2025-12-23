@@ -28,6 +28,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddScoped<IDbMigrator, DbMigrator<TContext>>();
 
+        // اگر AutoApplyOnStartup فعال باشه، از HostedService استفاده کن
+        if (options.AutoApplyOnStartup)
+        {
+            services.AddHostedService<MigrationHostedService>();
+        }
+
         return services;
     }
 
@@ -36,22 +42,6 @@ public static class ServiceCollectionExtensions
         where TContext : DbContext
     {
         var options = endpoints.ServiceProvider.GetRequiredService<KSDbMigratorOptions>();
-
-        if (options.AutoApplyOnStartup)
-        {
-            try
-            {
-                using var scope = endpoints.ServiceProvider.CreateScope();
-                var migrator = scope.ServiceProvider.GetRequiredService<IDbMigrator>();
-                migrator.ApplyPendingScriptsAsync().GetAwaiter().GetResult(); // synchronous برای startup
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.InnerException?.Message);
-                throw;
-            }
-        }
 
         if (!options.EnableMigrationEndpoints)
             return endpoints;
@@ -63,11 +53,19 @@ public static class ServiceCollectionExtensions
 
         group.MapGet("/status", async (TContext ctx) =>
         {
-            var applied = await ctx.Set<AppliedScript>()
-                .AsNoTracking()
-                .OrderBy(x => x.AppliedOn)
-                .Select(x => x.MigrationName)
-                .ToListAsync();
+            List<string> applied = new();
+            try
+            {
+                applied = await ctx.Set<AppliedScript>()
+                    .AsNoTracking()
+                    .OrderBy(x => x.AppliedOn)
+                    .Select(x => x.MigrationName)
+                    .ToListAsync();
+            }
+            catch
+            {
+                // اگر جدول وجود نداشته باشه، applied خالی برمی‌گردونیم
+            }
 
             var applyFolder = options.ApplyScriptsFolder;
             var allScripts = Directory.Exists(applyFolder)
