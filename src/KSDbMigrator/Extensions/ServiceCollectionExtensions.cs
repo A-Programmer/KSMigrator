@@ -63,18 +63,43 @@ public static class ServiceCollectionExtensions
                     .Select(x => x.MigrationName)
                     .ToListAsync();
             }
-            catch
+            catch(Exception ex)
             {
                 // اگر جدول وجود نداشته باشه، applied خالی برمی‌گردونیم
+                Console.WriteLine($"\n\n\n\n\n\n\nApplied_Script table could not be found: {ex.Message}\n\n\n\n\n\n\n");
             }
 
             var applyFolder = options.ApplyScriptsFolder;
+            
+            Console.WriteLine($"\n\n\n\n\n\n\n{applyFolder}\n\n\n\n\n\n\n");
+            
             var allScripts = Directory.Exists(applyFolder)
                 ? Directory.GetFiles(applyFolder, "*.sql")
                     .Select(Path.GetFileNameWithoutExtension)
                     .OrderBy(x => x)
                     .ToList()
                 : new List<string>();
+            
+            Console.WriteLine($"\n\n\n\n\n\n\nApply Directory Existence{Directory.Exists(applyFolder)}\n\n\n\n\n\n\n");
+
+            if (Directory.Exists(applyFolder))
+            {
+                int i = 1;
+                foreach (var applyFolderFile in Directory.GetFiles(applyFolder))
+                {
+                    Console.WriteLine($"\n\n\n\n\n\n\nFile Number {i}: + {applyFolderFile}\n\n\n\n\n\n\n");
+                    i++;
+                }
+            
+            
+                int j = 1;
+                foreach (var script in allScripts)
+                {
+                    Console.WriteLine($"\n\n\n\n\n\n Script Number {j}: + {script}\n\n\n\n\n\n\n");
+                    j++;
+                }
+            }
+            
 
             var pending = allScripts.Except(applied).ToList();
 

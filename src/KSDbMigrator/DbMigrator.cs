@@ -32,11 +32,17 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
     public async Task ApplyPendingScriptsAsync(CancellationToken ct = default)
     {
+        Console.WriteLine($"Applying pending scripts for {_options.DatabaseType}...");
         await EnsureConnectionAsync(ct);
 
         var scripts = Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql")
             .OrderBy(Path.GetFileName)
             .ToList();
+
+        foreach (var script in scripts)
+        {
+            Console.WriteLine($"Applying pending script {Path.GetFileName(script)}");
+        }
 
         if (!scripts.Any())
             return;
@@ -49,33 +55,58 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         {
             foreach (var scriptPath in scripts)
             {
+                Console.WriteLine($"\n\n\n\n\n----- Applying pending script {Path.GetFileName(scriptPath)}\n\n\n\n\n");
+                
                 var migrationName = Path.GetFileNameWithoutExtension(scriptPath);
                 var sql = await File.ReadAllTextAsync(scriptPath, ct);
 
+                Console.WriteLine($"\n\n\n\nSQL Script:\n\n{sql}\n\n\n\n");
+
                 await _context.Database.ExecuteSqlRawAsync(sql, ct);
 
+                Console.WriteLine($"\n\n\\n\n\nSQL Script Executed\n\n\n\n\n\n");
+                
                 // سعی می‌کنیم رکورد اضافه کنیم — اگر جدول وجود داشته باشه، اضافه می‌شه
                 try
                 {
-                    await _context.Set<AppliedScript>().AddAsync(new AppliedScript
-                    {
-                        ScriptName = Path.GetFileName(scriptPath),
-                        MigrationName = migrationName,
-                        AppliedOn = DateTime.UtcNow
-                    }, ct);
+                    Console.WriteLine($"\n\n\\n\n\nTry to add first record to the applied_scripts\n\n\n\n\n\n");
 
-                    await _context.SaveChangesAsync(ct);
+                    await _context.Set<AppliedScript>()
+                        .AddAsync(
+                            new AppliedScript
+                            {
+                                ScriptName = Path.GetFileName(scriptPath),
+                                MigrationName = migrationName,
+                                AppliedOn = DateTime.UtcNow
+                            }, ct);
+
+                    var addResult = await _context.SaveChangesAsync(ct);
+
+                    Console.WriteLine($"\n\n\\n\n\nAdd Result Status: {addResult}\n\n\n\n\n\n");
+
                 }
                 catch (PostgresException ex) when (ex.SqlState == "42P01")
                 {
                     // جدول هنوز وجود نداره — نادیده بگیر
+
+                    Console.WriteLine($"\n\n\\n\n\napplied_scripts is not created yet\n\n\n\n\n\n");
+
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\n\n\\n\n\n{ex.Message}\n\n\n\n\n\n");
+
                 }
             }
 
             await transaction.CommitAsync(ct);
+            
+            Console.WriteLine($"\n\n\\n\n\nTransaction finished.\n\n\n\n\n\n");
+
         }
-        catch
+        catch(Exception ex)
         {
+            Console.WriteLine($"\n\n\n\n{ex.Message}\n\n\n\n");
             await transaction.RollbackAsync(ct);
             throw;
         }
@@ -137,6 +168,7 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
     private async Task BackupDatabaseAsync(string operation, CancellationToken ct)
     {
+        Console.WriteLine($"Backuping database {operation}");
         if (_options.DatabaseType != DatabaseType.PostgreSQL) return;
 
         var cs = _context.Database.GetConnectionString()!;
