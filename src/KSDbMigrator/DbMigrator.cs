@@ -171,9 +171,34 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
     private async Task BackupDatabaseAsync(string operation, CancellationToken ct)
     {
-        Console.WriteLine($"Backuping database {operation}");
         if (_options.DatabaseType != DatabaseType.PostgreSQL) return;
 
+        // اگر pg_dump وجود نداشته باشه، نادیده بگیر (برای توسعه و تست)
+        var psi = new ProcessStartInfo
+        {
+            FileName = "which",
+            Arguments = "pg_dump",
+            RedirectStandardOutput = true,
+            UseShellExecute = false
+        };
+
+        try
+        {
+            using var p = Process.Start(psi);
+            await p.WaitForExitAsync(ct);
+            if (p.ExitCode != 0) // pg_dump پیدا نشد
+            {
+                Console.WriteLine("pg_dump not found in container. Skipping backup (safe for development).");
+                return;
+            }
+        }
+        catch
+        {
+            Console.WriteLine("Could not check for pg_dump. Skipping backup.");
+            return;
+        }
+
+        // اگر pg_dump وجود داشت، بک‌آپ بگیر
         var cs = _context.Database.GetConnectionString()!;
         var builder = new NpgsqlConnectionStringBuilder(cs);
 
@@ -193,7 +218,7 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
             builder.Database!
         };
 
-        var psi = new ProcessStartInfo
+        var backupPsi = new ProcessStartInfo
         {
             FileName = _options.PgDumpPath ?? "pg_dump",
             Arguments = string.Join(" ", args),
@@ -203,14 +228,21 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         };
 
         if (!string.IsNullOrEmpty(builder.Password))
-            psi.Environment["PGPASSWORD"] = builder.Password;
+            backupPsi.Environment["PGPASSWORD"] = builder.Password;
 
-        using var p = Process.Start(psi)!;
-        var error = await p.StandardError.ReadToEndAsync(ct);
-        await p.WaitForExitAsync(ct);
+        using var backupP = Process.Start(backupPsi)!;
+        var error = await backupP.StandardError.ReadToEndAsync(ct);
+        await backupP.WaitForExitAsync(ct);
 
-        if (p.ExitCode != 0)
-            throw new InvalidOperationException($"pg_dump failed: {error}");
+        if (backupP.ExitCode != 0)
+        {
+            Console.WriteLine($"pg_dump failed (non-critical): {error}");
+            // ادامه بده — بک‌آپ اختیاریه
+        }
+        else
+        {
+            Console.WriteLine($"Backup created: {path}");
+        }
     }
 
     private async Task ExportDataAsync(CancellationToken ct)
