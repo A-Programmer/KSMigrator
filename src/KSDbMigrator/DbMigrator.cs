@@ -19,11 +19,10 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         var assemblyPath = Assembly.GetAssembly(typeof(TContext))?.Location;
         var assemblyDirectory = Path.GetDirectoryName(assemblyPath) ?? throw new InvalidOperationException("Cannot determine assembly directory.");
 
-        _options.ApplyScriptsFolder = Path.Combine("/", "SQLScripts", "Apply");
-        Console.WriteLine($"\n\n\n\n\n\n\n\n\nApplying scripts folder: {_options.ApplyScriptsFolder}\n\n\n\n\n\n\n\n\n");
-        _options.RollbackScriptsFolder = Path.Combine("/",  "SQLScripts", "Rollback");
-        _options.BackupsFolder = Path.Combine("/",  "SQLScripts", "Backups");
-        _options.ExportsFolder = Path.Combine("/",  "SQLScripts", "Exports");
+        _options.ApplyScriptsFolder = Path.Combine(AppContext.BaseDirectory, "SQLScripts", "Apply");
+        _options.RollbackScriptsFolder = Path.Combine(AppContext.BaseDirectory, "SQLScripts", "Rollback");
+        _options.BackupsFolder = Path.Combine(AppContext.BaseDirectory, "SQLScripts", "Backups");
+        _options.ExportsFolder = Path.Combine(AppContext.BaseDirectory, "SQLScripts", "Exports");
         
         Directory.CreateDirectory(_options.ApplyScriptsFolder);
         Directory.CreateDirectory(_options.RollbackScriptsFolder);
