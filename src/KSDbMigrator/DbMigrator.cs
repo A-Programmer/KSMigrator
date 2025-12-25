@@ -41,18 +41,17 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
         if (!scripts.Any())
             return;
 
-        // بک‌آپ رو اول انجام بده، اما اگر خطا داد یا pg_dump نبود، فقط لاگ کن و ادامه بده
+        // بک‌آپ اختیاری — اگر خطا داد، فقط لاگ کن و ادامه بده
         try
         {
             await BackupDatabaseAsync("before_apply", ct);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Backup skipped due to error (non-critical): {ex.Message}");
-            // ادامه بده — بک‌آپ اختیاریه
+            Console.WriteLine($"Backup skipped (non-critical): {ex.Message}");
         }
 
-        // حالا transaction رو شروع کن
+        // transaction رو شروع کن
         await using var transaction = await _context.Database.BeginTransactionAsync(ct);
 
         try
@@ -64,31 +63,34 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
                 await _context.Database.ExecuteSqlRawAsync(sql, ct);
 
-                // اضافه کردن رکورد به applied_scripts
+                // اضافه کردن رکورد به applied_scripts — فقط اگر جدول وجود داشته باشه
                 try
                 {
-                    await _context.Set<AppliedScript>().AddAsync(new AppliedScript
+                    var entity = new AppliedScript
                     {
                         ScriptName = Path.GetFileName(scriptPath),
                         MigrationName = migrationName,
                         AppliedOn = DateTime.UtcNow
-                    }, ct);
+                    };
 
+                    await _context.Set<AppliedScript>().AddAsync(entity, ct);
                     await _context.SaveChangesAsync(ct);
                 }
                 catch (PostgresException ex) when (ex.SqlState == "42P01")
                 {
-                    // جدول هنوز وجود نداره — اولین اسکریپت جدول رو می‌سازه
-                    // نادیده بگیر
+                    // جدول هنوز وجود نداره — اولین اسکریپت داره می‌سازه
+                    // نادیده بگیر — در اسکریپت‌های بعدی اضافه می‌شه
                 }
             }
 
             await transaction.CommitAsync(ct);
+            Console.WriteLine("All pending migrations applied successfully.");
         }
         catch (Exception ex)
         {
             await transaction.RollbackAsync(ct);
-            throw new InvalidOperationException($"Migration failed: {ex.Message}", ex);
+            Console.WriteLine($"Migration failed: {ex.Message}");
+            throw;
         }
     }
 
