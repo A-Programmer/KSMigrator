@@ -32,86 +32,63 @@ public class DbMigrator<TContext> : IDbMigrator where TContext : DbContext
 
     public async Task ApplyPendingScriptsAsync(CancellationToken ct = default)
     {
-        Console.WriteLine("Hello World!!!");
-        Console.WriteLine($"Inner: Applying pending scripts for {_options.DatabaseType}");
-        Console.WriteLine($"\n\n\n\n\n\n1: {_options.ApplyScriptsFolder}\n\n\n\n\n\n");
         await EnsureConnectionAsync(ct);
-        Console.WriteLine($"\n\n\n\n\n\n2: {_options.ApplyScriptsFolder}\n\n\n\n\n\n");
 
         var scripts = Directory.GetFiles(_options.ApplyScriptsFolder, "*.sql")
             .OrderBy(Path.GetFileName)
             .ToList();
 
-        foreach (var script in scripts)
-        {
-            Console.WriteLine($"Applying pending script {Path.GetFileName(script)}");
-        }
-
         if (!scripts.Any())
             return;
 
-        await BackupDatabaseAsync("before_apply", ct);
+        // بک‌آپ رو اول انجام بده، اما اگر خطا داد یا pg_dump نبود، فقط لاگ کن و ادامه بده
+        try
+        {
+            await BackupDatabaseAsync("before_apply", ct);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Backup skipped due to error (non-critical): {ex.Message}");
+            // ادامه بده — بک‌آپ اختیاریه
+        }
 
+        // حالا transaction رو شروع کن
         await using var transaction = await _context.Database.BeginTransactionAsync(ct);
 
         try
         {
             foreach (var scriptPath in scripts)
             {
-                Console.WriteLine($"\n\n\n\n\n----- Applying pending script {Path.GetFileName(scriptPath)}\n\n\n\n\n");
-                
                 var migrationName = Path.GetFileNameWithoutExtension(scriptPath);
                 var sql = await File.ReadAllTextAsync(scriptPath, ct);
 
-                Console.WriteLine($"\n\n\n\nSQL Script:\n\n{sql}\n\n\n\n");
-
                 await _context.Database.ExecuteSqlRawAsync(sql, ct);
 
-                Console.WriteLine($"\n\n\\n\n\nSQL Script Executed\n\n\n\n\n\n");
-                
-                // سعی می‌کنیم رکورد اضافه کنیم — اگر جدول وجود داشته باشه، اضافه می‌شه
+                // اضافه کردن رکورد به applied_scripts
                 try
                 {
-                    Console.WriteLine($"\n\n\\n\n\nTry to add first record to the applied_scripts\n\n\n\n\n\n");
+                    await _context.Set<AppliedScript>().AddAsync(new AppliedScript
+                    {
+                        ScriptName = Path.GetFileName(scriptPath),
+                        MigrationName = migrationName,
+                        AppliedOn = DateTime.UtcNow
+                    }, ct);
 
-                    await _context.Set<AppliedScript>()
-                        .AddAsync(
-                            new AppliedScript
-                            {
-                                ScriptName = Path.GetFileName(scriptPath),
-                                MigrationName = migrationName,
-                                AppliedOn = DateTime.UtcNow
-                            }, ct);
-
-                    var addResult = await _context.SaveChangesAsync(ct);
-
-                    Console.WriteLine($"\n\n\\n\n\nAdd Result Status: {addResult}\n\n\n\n\n\n");
-
+                    await _context.SaveChangesAsync(ct);
                 }
                 catch (PostgresException ex) when (ex.SqlState == "42P01")
                 {
-                    // جدول هنوز وجود نداره — نادیده بگیر
-
-                    Console.WriteLine($"\n\n\\n\n\napplied_scripts is not created yet\n\n\n\n\n\n");
-
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"\n\n\\n\n\n{ex.Message}\n\n\n\n\n\n");
-
+                    // جدول هنوز وجود نداره — اولین اسکریپت جدول رو می‌سازه
+                    // نادیده بگیر
                 }
             }
 
             await transaction.CommitAsync(ct);
-            
-            Console.WriteLine($"\n\n\\n\n\nTransaction finished.\n\n\n\n\n\n");
-
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
-            Console.WriteLine($"\n\n\n\n{ex.Message}\n\n\n\n");
             await transaction.RollbackAsync(ct);
-            throw;
+            throw new InvalidOperationException($"Migration failed: {ex.Message}", ex);
         }
     }
 
